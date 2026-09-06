@@ -155,6 +155,9 @@
       background:rgba(255,255,255,.022);font-size:9px;color:#c7d6e3
     }
     .airport-flight b{color:#f0f6fb}
+    .airport-flight-info{min-width:0;overflow-wrap:anywhere}
+    .airport-flight-route{display:block;margin-top:4px;line-height:1.6;color:#c7d6e3}
+    .airport-flight-status{flex-shrink:0;align-self:flex-start}
     .airport-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;font-size:9px}
     .airport-links a{color:#bcd8ec;text-decoration:none}
     .airport-note{font-size:9px;color:var(--muted);line-height:1.55;margin-top:8px}
@@ -281,6 +284,7 @@
     }
   </style>
   <script src="./config.js"></script>
+  <script src="./airport-locations.js"></script>
 </head>
 <body>
 <div class="app">
@@ -402,11 +406,11 @@
         </div>
         <div class="airport-grid" id="airportGrid">
           <div class="airport-box">
-            <div class="airport-code">HND 羽田 <span class="airport-state">待配置</span></div>
+            <div class="airport-code">日本 · 东京（羽田） <span class="airport-state">待配置</span></div>
             <div class="airport-note">配置 Cloudflare Worker 后显示实时延误 / 取消。</div>
           </div>
           <div class="airport-box">
-            <div class="airport-code">NRT 成田 <span class="airport-state">待配置</span></div>
+            <div class="airport-code">日本 · 成田（成田机场） <span class="airport-state">待配置</span></div>
             <div class="airport-note">配置 Cloudflare Worker 后显示实时延误 / 取消。</div>
           </div>
         </div>
@@ -952,6 +956,18 @@
     return "正常";
   }
 
+  function airportLocation(code){
+    const raw = String(code || "").trim();
+    const normalized = raw.toUpperCase();
+    const iata = window.AIRPORT_ICAO_CODES?.[normalized] || normalized;
+    return window.AIRPORT_LOCATIONS?.[iata] || (raw ? `地点待识别（${raw}）` : "地点暂无");
+  }
+
+  function airportName(code){
+    return code === "HND" ? "日本 · 东京（羽田）"
+      : code === "NRT" ? "日本 · 成田（成田机场）" : airportLocation(code);
+  }
+
   function renderAirportStatus(data){
     const airports = Array.isArray(data?.airports) ? data.airports : [];
     if(!airports.length){
@@ -962,7 +978,7 @@
     $("airportGrid").innerHTML = airports.map(a => `
       <div class="airport-box">
         <div class="airport-code">
-          ${escapeHtml(a.code)} ${a.code === "HND" ? "羽田" : "成田"}
+          <span title="${escapeHtml(a.code)}">${escapeHtml(airportName(a.code))}</span>
           <span class="airport-state ${airportHealthClass(a)}">${airportHealthText(a)}</span>
         </div>
         <div class="airport-stats">
@@ -981,8 +997,10 @@
     $("airportIncidents").innerHTML = incidents.length
       ? incidents.map(f => `
         <div class="airport-flight">
-          <span><b>${escapeHtml(f.airport)} · ${escapeHtml(f.number || "—")}</b> ${escapeHtml(f.direction || "")} ${escapeHtml(f.route || "")}</span>
-          <span>${escapeHtml(f.status || "")}</span>
+          <span class="airport-flight-info"><b>${f.airport === "HND" ? "羽田" : f.airport === "NRT" ? "成田" : escapeHtml(airportName(f.airport))} · ${escapeHtml(f.number || "—")}</b>
+            <span class="airport-flight-route" title="${escapeHtml(f.route || "")}">${f.direction === "出发" ? "飞往" : f.direction === "到达" ? "来自" : escapeHtml(f.direction || "")} ${escapeHtml(airportLocation(f.route))}</span>
+          </span>
+          <span class="airport-flight-status">${escapeHtml(f.status || "")}</span>
         </div>
       `).join("")
       : `<div class="airport-note">当前监测窗口内没有检测到延误、取消或改降航班。</div>`;
@@ -996,11 +1014,11 @@
     $("airportIssued").textContent = "航班数据源：尚未配置";
     $("airportGrid").innerHTML = `
       <div class="airport-box">
-        <div class="airport-code">HND 羽田 <span class="airport-state">待配置</span></div>
+        <div class="airport-code">日本 · 东京（羽田） <span class="airport-state">待配置</span></div>
         <div class="airport-note">部署 Worker 后自动统计延误 / 取消 / 改降。</div>
       </div>
       <div class="airport-box">
-        <div class="airport-code">NRT 成田 <span class="airport-state">待配置</span></div>
+        <div class="airport-code">日本 · 成田（成田机场） <span class="airport-state">待配置</span></div>
         <div class="airport-note">部署 Worker 后自动统计延误 / 取消 / 改降。</div>
       </div>`;
     $("airportIncidents").innerHTML = "";
@@ -1096,3 +1114,4 @@
 </script>
 </body>
 </html>
+
