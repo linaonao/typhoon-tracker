@@ -508,24 +508,32 @@
       const path = [[lat,lng], ...forecastPoints.map(p=>p.latlng)];
       L.polyline(path, {color:"#ffc857", weight:2.2, opacity:.85, dashArray:"7 8"}).addTo(state.layers);
 
+      const bounds = L.latLngBounds(path);
+
       forecastPoints.forEach((p,idx) => {
         if(p.radius){
-          L.circle(p.latlng, {radius:p.radius*1000, ...circleStyle("forecast")}).addTo(state.layers);
+          // Leaflet Circle#getBounds() needs the circle to already belong to a map.
+          // Add it first, then extend the viewport bounds with the real rendered circle.
+          const forecastCircle = L.circle(
+            p.latlng,
+            {radius:p.radius*1000, ...circleStyle("forecast")}
+          ).addTo(state.layers);
+          bounds.extend(forecastCircle.getBounds());
         }
-        const tiny = L.divIcon({className:"", html:'<div class="small-icon"></div>', iconSize:[10,10], iconAnchor:[5,5]});
+
+        const tiny = L.divIcon({
+          className:"",
+          html:'<div class="small-icon"></div>',
+          iconSize:[10,10],
+          iconAnchor:[5,5]
+        });
+
         L.marker(p.latlng,{icon:tiny}).bindTooltip(
           `${p.hours ?? "?"}h · ${formatTime(p.time)}${p.pressure != null ? `<br>${p.pressure} hPa` : ""}`,
           {direction:"top", offset:[0,-5]}
         ).addTo(state.layers);
       });
 
-      const bounds = L.latLngBounds(path);
-      forecastPoints.forEach(p => {
-        if(p.radius){
-          const c = L.circle(p.latlng,{radius:p.radius*1000});
-          bounds.extend(c.getBounds());
-        }
-      });
       state.map.fitBounds(bounds.pad(.18), {maxZoom:6});
     }else{
       state.map.setView([lat,lng], 6);
@@ -594,13 +602,29 @@
   async function refresh(){
     setLoading(true);
     setStatus("warn","正在更新");
+
+    let storms;
     try{
-      const storms = await loadStorms();
+      // Network/data stage
+      storms = await loadStorms();
+    }catch(err){
+      console.error("JMA data request failed:", err);
+      setStatus("offline","JMA 连接失败");
+      $("stormCount").textContent = "离线";
+      $("stormList").innerHTML = `<div class="empty">无法取得 JMA 实时数据。<br>请检查网络后点击“刷新”。<br><br><small>${escapeHtml(err.message || String(err))}</small></div>`;
+      setLoading(false);
+      return;
+    }
+
+    try{
+      // Rendering stage
       state.storms = storms;
       if(!storms.some(s => s.id === state.selectedId)){
         state.selectedId = storms[0]?.id || null;
       }
+
       renderStormList();
+
       if(state.selectedId){
         selectStorm(state.selectedId);
       }else{
@@ -608,12 +632,12 @@
         renderDetails(null);
         state.map.setView([27.5,137.5],4);
       }
+
       setStatus("", storms.length ? "JMA 实时" : "JMA · 无活动系统");
     }catch(err){
-      console.error(err);
-      setStatus("offline","连接失败");
-      $("stormCount").textContent = "离线";
-      $("stormList").innerHTML = `<div class="empty">无法取得 JMA 实时数据。<br>请检查网络后点击“刷新”。<br><br><small>${escapeHtml(err.message || String(err))}</small></div>`;
+      console.error("UI rendering failed:", err);
+      setStatus("offline","页面显示错误");
+      $("stormList").innerHTML = `<div class="empty">JMA 数据已取得，但页面显示时发生错误。<br>请打开浏览器开发者工具查看 Console。<br><br><small>${escapeHtml(err.message || String(err))}</small></div>`;
     }finally{
       setLoading(false);
     }
