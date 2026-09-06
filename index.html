@@ -81,6 +81,7 @@
       box-shadow:var(--shadow);overflow:hidden;
     }
     .sidebar,.details{display:flex;flex-direction:column}
+    .details{overflow-y:auto}
     .section-head{
       padding:17px 17px 12px;display:flex;justify-content:space-between;align-items:center
     }
@@ -113,6 +114,51 @@
       border:1px solid var(--line);background:rgba(5,16,28,.82);backdrop-filter:blur(12px);
       border-radius:10px;padding:8px 10px;font-size:11px;color:#c5d6e4;box-shadow:0 8px 24px rgba(0,0,0,.18)
     }
+
+    .radar-control{
+      position:absolute;right:14px;top:14px;z-index:520;width:min(310px,calc(100% - 28px));
+      border:1px solid var(--line);border-radius:13px;padding:10px 11px;
+      background:rgba(5,16,28,.86);backdrop-filter:blur(12px);box-shadow:0 10px 28px rgba(0,0,0,.2)
+    }
+    .radar-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+    .radar-name{font-size:11px;font-weight:750;color:#d9ebf7}
+    .radar-actions{display:flex;gap:6px}
+    .mini-btn{
+      border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.045);
+      color:#cfe0ee;font-size:9px;padding:5px 7px;cursor:pointer
+    }
+    .mini-btn.active{background:rgba(92,214,255,.13);border-color:rgba(92,214,255,.3);color:var(--cyan)}
+    .radar-slider-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+    .radar-slider{width:100%;accent-color:#5cd6ff}
+    .radar-time{min-width:72px;text-align:right;font-size:9px;color:var(--muted)}
+    .radar-labels{display:flex;justify-content:space-between;font-size:8px;color:#7990a6;padding:2px 4px 0}
+    .airport-card{
+      margin:0 12px 10px;padding:12px;border:1px solid rgba(255,200,87,.15);
+      border-radius:14px;background:linear-gradient(180deg,rgba(255,200,87,.045),rgba(255,255,255,.018))
+    }
+    .airport-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:9px}
+    .airport-title{font-size:11px;color:var(--amber);font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+    .airport-issued{font-size:9px;color:var(--muted);margin-top:4px}
+    .airport-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+    .airport-box{padding:10px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.022)}
+    .airport-code{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:750}
+    .airport-state{font-size:9px;border-radius:999px;padding:3px 6px;background:rgba(82,219,154,.1);color:var(--green)}
+    .airport-state.warn{background:rgba(255,200,87,.1);color:var(--amber)}
+    .airport-state.bad{background:rgba(255,98,121,.1);color:var(--red)}
+    .airport-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:8px}
+    .airport-stat{text-align:center;padding:5px 2px;border-radius:8px;background:rgba(255,255,255,.025)}
+    .airport-stat b{display:block;font-size:14px}
+    .airport-stat span{font-size:8px;color:var(--muted)}
+    .airport-incidents{margin-top:8px;display:grid;gap:5px}
+    .airport-flight{
+      display:flex;justify-content:space-between;gap:8px;padding:6px 7px;border-radius:8px;
+      background:rgba(255,255,255,.022);font-size:9px;color:#c7d6e3
+    }
+    .airport-flight b{color:#f0f6fb}
+    .airport-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;font-size:9px}
+    .airport-links a{color:#bcd8ec;text-decoration:none}
+    .airport-note{font-size:9px;color:var(--muted);line-height:1.55;margin-top:8px}
+
     .map-legend{
       position:absolute;left:14px;bottom:14px;z-index:500;
       border:1px solid var(--line);background:rgba(5,16,28,.82);backdrop-filter:blur(12px);
@@ -229,10 +275,12 @@
       .hero{border-right:0;border-bottom:1px solid var(--line)}
       .metrics{grid-template-columns:1fr 1fr}
       .rain-slots{grid-template-columns:repeat(2,1fr)}
+      .radar-control{right:8px;top:8px;width:calc(100% - 16px)}
       .timeline-wrap{max-height:none}
       .notice{display:block}
     }
   </style>
+  <script src="./config.js"></script>
 </head>
 <body>
 <div class="app">
@@ -271,6 +319,25 @@
       <div class="map-overlay">
         <div class="map-chip" id="updatedChip">更新：—</div>
         <div class="map-chip" id="positionChip">中心：—</div>
+      </div>
+      <div class="radar-control">
+        <div class="radar-top">
+          <div>
+            <div class="radar-name">东京雨云雷达 · JMA Nowcast</div>
+            <div class="radar-time" id="radarUpdated" style="text-align:left;min-width:0;margin-top:3px">读取中…</div>
+          </div>
+          <div class="radar-actions">
+            <button class="mini-btn active" id="radarToggle" type="button">雷达 ON</button>
+            <button class="mini-btn" id="tokyoFocus" type="button">东京</button>
+          </div>
+        </div>
+        <div class="radar-slider-row">
+          <div>
+            <input class="radar-slider" id="radarSlider" type="range" min="0" max="2" step="1" value="0">
+            <div class="radar-labels"><span>现在</span><span>+30m</span><span>+60m</span></div>
+          </div>
+          <div class="radar-time" id="radarFrameLabel">现在</div>
+        </div>
       </div>
       <div class="map-legend">
         <div class="legend-item"><span class="legend-line"></span> 当前/已知路径</div>
@@ -325,6 +392,32 @@
         <div class="rain-week" id="rainWeek"></div>
       </div>
 
+      <div class="airport-card" id="airportCard">
+        <div class="airport-head">
+          <div>
+            <div class="airport-title">东京机场运行监测</div>
+            <div class="airport-issued" id="airportIssued">航班数据源：等待配置</div>
+          </div>
+          <button class="mini-btn" id="airportRefresh" type="button">刷新</button>
+        </div>
+        <div class="airport-grid" id="airportGrid">
+          <div class="airport-box">
+            <div class="airport-code">HND 羽田 <span class="airport-state">待配置</span></div>
+            <div class="airport-note">配置 Cloudflare Worker 后显示实时延误 / 取消。</div>
+          </div>
+          <div class="airport-box">
+            <div class="airport-code">NRT 成田 <span class="airport-state">待配置</span></div>
+            <div class="airport-note">配置 Cloudflare Worker 后显示实时延误 / 取消。</div>
+          </div>
+        </div>
+        <div class="airport-incidents" id="airportIncidents"></div>
+        <div class="airport-links">
+          <a href="https://www.tokyo-haneda.com/en/flight/" target="_blank" rel="noreferrer">羽田官方航班信息 ↗</a>
+          <a href="https://www.narita-airport.jp/en/flight/" target="_blank" rel="noreferrer">成田官方航班信息 ↗</a>
+        </div>
+        <div class="airport-note" id="airportNote">网页不会把航班 API Key 暴露给访问者；密钥只保存在 Cloudflare Worker。</div>
+      </div>
+
       <div class="timeline-wrap">
         <div class="timeline-title">未来路径</div>
         <div class="timeline" id="forecastTimeline">
@@ -349,7 +442,11 @@
 
   const JMA_BASE = "https://www.jma.go.jp/bosai/typhoon/data";
   const TOKYO_FORECAST_URL = "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json";
+  const JMA_RADAR_LIVE = "https://www.jma.go.jp/bosai/jmatile/data/nowc/targetTimes_N1.json";
+  const JMA_RADAR_FORECAST = "https://www.jma.go.jp/bosai/jmatile/data/nowc/targetTimes_N2.json";
+  const AIRPORT_STATUS_API = window.TYPHOON_CONFIG?.airportApiUrl || "";
   const AUTO_REFRESH_MS = 10 * 60 * 1000;
+  const AIRPORT_REFRESH_MS = 30 * 60 * 1000;
 
   const $ = id => document.getElementById(id);
   const state = {
@@ -357,7 +454,12 @@
     selectedId: null,
     layers: null,
     map: null,
-    refreshTimer: null
+    refreshTimer: null,
+    airportTimer: null,
+    radarLayer: null,
+    radarFrames: [],
+    radarEnabled: true,
+    radarIndex: 0
   };
 
   function initMap(){
@@ -366,6 +468,10 @@
       minZoom: 3,
       worldCopyJump: true
     }).setView([27.5, 137.5], 4);
+
+    state.map.createPane("radarPane");
+    state.map.getPane("radarPane").style.zIndex = 350;
+    state.map.getPane("radarPane").style.pointerEvents = "none";
 
     L.tileLayer("https://maps.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
       maxZoom: 18,
@@ -583,6 +689,93 @@
       </div>`).join("");
   }
 
+
+  function parseJmaStamp(stamp){
+    if(!stamp || String(stamp).length < 12) return null;
+    const s = String(stamp);
+    return new Date(Date.UTC(
+      Number(s.slice(0,4)), Number(s.slice(4,6))-1, Number(s.slice(6,8)),
+      Number(s.slice(8,10)), Number(s.slice(10,12)), Number(s.slice(12,14) || 0)
+    ));
+  }
+
+  function radarUrl(frame){
+    return `https://www.jma.go.jp/bosai/jmatile/data/nowc/${frame.basetime}/none/${frame.validtime}/surf/hrpns/{z}/{x}/{y}.png`;
+  }
+
+  function nearestForecast(forecasts, baseDate, minutes){
+    if(!forecasts.length || !baseDate) return null;
+    const target = baseDate.getTime() + minutes * 60000;
+    return forecasts.reduce((best, item) => {
+      const d = parseJmaStamp(item.validtime);
+      if(!d) return best;
+      const delta = Math.abs(d.getTime() - target);
+      return !best || delta < best.delta ? {item, delta} : best;
+    }, null)?.item || null;
+  }
+
+  async function loadRadarFrames(){
+    const [live, fc] = await Promise.all([
+      getJson(JMA_RADAR_LIVE),
+      getJson(JMA_RADAR_FORECAST)
+    ]);
+    if(!Array.isArray(live) || !live.length) throw new Error("JMA 雷达时刻资料异常");
+
+    const now = live[0];
+    const baseDate = parseJmaStamp(now.validtime);
+    const forecasts = Array.isArray(fc) ? fc : [];
+    const p30 = nearestForecast(forecasts, baseDate, 30) || now;
+    const p60 = nearestForecast(forecasts, baseDate, 60) || p30 || now;
+
+    state.radarFrames = [
+      {...now, label:"现在"},
+      {...p30, label:"+30 分钟"},
+      {...p60, label:"+60 分钟"}
+    ];
+
+    $("radarSlider").max = "2";
+    setRadarFrame(Math.min(state.radarIndex, 2));
+  }
+
+  function setRadarFrame(index){
+    if(!state.radarFrames.length) return;
+    state.radarIndex = Math.max(0, Math.min(Number(index) || 0, state.radarFrames.length - 1));
+    const frame = state.radarFrames[state.radarIndex];
+
+    if(state.radarLayer){
+      state.map.removeLayer(state.radarLayer);
+      state.radarLayer = null;
+    }
+
+    if(state.radarEnabled){
+      state.radarLayer = L.tileLayer(radarUrl(frame), {
+        pane:"radarPane",
+        opacity:.68,
+        maxNativeZoom:10,
+        maxZoom:18,
+        attribution:'降水ナウキャスト &copy; Japan Meteorological Agency'
+      }).addTo(state.map);
+    }
+
+    const d = parseJmaStamp(frame.validtime);
+    $("radarFrameLabel").textContent = frame.label;
+    $("radarUpdated").textContent = d
+      ? `${frame.label} · ${new Intl.DateTimeFormat("zh-CN",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"Asia/Tokyo"}).format(d)} JST`
+      : frame.label;
+  }
+
+  function toggleRadar(){
+    state.radarEnabled = !state.radarEnabled;
+    $("radarToggle").textContent = state.radarEnabled ? "雷达 ON" : "雷达 OFF";
+    $("radarToggle").classList.toggle("active", state.radarEnabled);
+    if(state.radarEnabled){
+      setRadarFrame(state.radarIndex);
+    }else if(state.radarLayer){
+      state.map.removeLayer(state.radarLayer);
+      state.radarLayer = null;
+    }
+  }
+
   function setStatus(kind, label){
     const dot = $("liveDot");
     dot.className = "dot" + (kind ? " " + kind : "");
@@ -745,6 +938,92 @@
     drawStorm(storm);
   }
 
+
+  function airportHealthClass(a){
+    if((a.cancelled || 0) > 0 || (a.diverted || 0) > 0) return "bad";
+    if((a.delayed || 0) > 0) return "warn";
+    return "";
+  }
+
+  function airportHealthText(a){
+    if((a.cancelled || 0) > 0) return "有取消";
+    if((a.diverted || 0) > 0) return "有改降";
+    if((a.delayed || 0) > 0) return "有延误";
+    return "正常";
+  }
+
+  function renderAirportStatus(data){
+    const airports = Array.isArray(data?.airports) ? data.airports : [];
+    if(!airports.length){
+      throw new Error("航班接口未返回机场数据");
+    }
+
+    $("airportIssued").textContent = `更新：${formatTime(data.generatedAt || new Date().toISOString())}`;
+    $("airportGrid").innerHTML = airports.map(a => `
+      <div class="airport-box">
+        <div class="airport-code">
+          ${escapeHtml(a.code)} ${a.code === "HND" ? "羽田" : "成田"}
+          <span class="airport-state ${airportHealthClass(a)}">${airportHealthText(a)}</span>
+        </div>
+        <div class="airport-stats">
+          <div class="airport-stat"><b>${a.delayed ?? 0}</b><span>延误</span></div>
+          <div class="airport-stat"><b>${a.cancelled ?? 0}</b><span>取消</span></div>
+          <div class="airport-stat"><b>${a.diverted ?? 0}</b><span>改降</span></div>
+        </div>
+        <div class="airport-note">监测窗口：${a.windowMinutes ?? "—"} 分钟 · 航班 ${a.totalFlights ?? "—"} 班</div>
+      </div>
+    `).join("");
+
+    const incidents = airports.flatMap(a =>
+      (a.incidents || []).map(f => ({...f, airport:a.code}))
+    ).slice(0, 8);
+
+    $("airportIncidents").innerHTML = incidents.length
+      ? incidents.map(f => `
+        <div class="airport-flight">
+          <span><b>${escapeHtml(f.airport)} · ${escapeHtml(f.number || "—")}</b> ${escapeHtml(f.direction || "")} ${escapeHtml(f.route || "")}</span>
+          <span>${escapeHtml(f.status || "")}</span>
+        </div>
+      `).join("")
+      : `<div class="airport-note">当前监测窗口内没有检测到延误、取消或改降航班。</div>`;
+
+    $("airportNote").textContent = data.cached
+      ? "数据由 Cloudflare Worker 缓存后提供；最终状态请以航空公司和机场官方信息为准。"
+      : "实时航班状态来自配置的航班数据源；最终状态请以航空公司和机场官方信息为准。";
+  }
+
+  function renderAirportUnconfigured(){
+    $("airportIssued").textContent = "航班数据源：尚未配置";
+    $("airportGrid").innerHTML = `
+      <div class="airport-box">
+        <div class="airport-code">HND 羽田 <span class="airport-state">待配置</span></div>
+        <div class="airport-note">部署 Worker 后自动统计延误 / 取消 / 改降。</div>
+      </div>
+      <div class="airport-box">
+        <div class="airport-code">NRT 成田 <span class="airport-state">待配置</span></div>
+        <div class="airport-note">部署 Worker 后自动统计延误 / 取消 / 改降。</div>
+      </div>`;
+    $("airportIncidents").innerHTML = "";
+    $("airportNote").textContent = "请在 config.js 填入 Cloudflare Worker 地址；密钥不会出现在 GitHub Pages 中。";
+  }
+
+  async function loadAirportStatus(){
+    if(!AIRPORT_STATUS_API){
+      renderAirportUnconfigured();
+      return;
+    }
+
+    $("airportIssued").textContent = "正在读取机场运行状态…";
+    try{
+      const data = await getJson(AIRPORT_STATUS_API);
+      renderAirportStatus(data);
+    }catch(err){
+      console.error("Airport status failed:", err);
+      $("airportIssued").textContent = "机场航班数据连接失败";
+      $("airportNote").textContent = `错误：${err.message || err}。可使用下方机场官方链接核对。`;
+    }
+  }
+
   async function refresh(){
     setLoading(true);
     setStatus("warn","正在更新");
@@ -756,6 +1035,11 @@
         console.error("Tokyo rain forecast failed:", err);
         renderTokyoRain(null);
       });
+
+    loadRadarFrames().catch(err => {
+      console.error("Radar nowcast failed:", err);
+      $("radarUpdated").textContent = "JMA 雷达读取失败";
+    });
 
     let storms;
     try{
@@ -798,9 +1082,16 @@
   }
 
   $("refreshBtn").addEventListener("click", refresh);
+  $("radarToggle").addEventListener("click", toggleRadar);
+  $("tokyoFocus").addEventListener("click", () => state.map.setView([35.68,139.76], 8));
+  $("radarSlider").addEventListener("input", e => setRadarFrame(Number(e.target.value)));
+  $("airportRefresh").addEventListener("click", loadAirportStatus);
+
   initMap();
   refresh();
+  loadAirportStatus();
   state.refreshTimer = setInterval(refresh, AUTO_REFRESH_MS);
+  state.airportTimer = setInterval(loadAirportStatus, AIRPORT_REFRESH_MS);
 })();
 </script>
 </body>
