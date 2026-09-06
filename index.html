@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07111f" />
+  <title>Typhoon Watch · 台风追踪</title>
+  <link rel="preconnect" href="https://www.jma.go.jp">
+  <link rel="preconnect" href="https://maps.gsi.go.jp">
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="">
+  <style>
+    :root{
+      --bg:#07111f;
+      --bg2:#0b1627;
+      --panel:rgba(10,23,40,.88);
+      --panel2:rgba(15,31,51,.8);
+      --line:rgba(255,255,255,.10);
+      --muted:#8fa5bb;
+      --text:#ecf4fb;
+      --cyan:#5cd6ff;
+      --blue:#4c8dff;
+      --green:#52db9a;
+      --amber:#ffc857;
+      --orange:#ff9857;
+      --red:#ff6279;
+      --purple:#b78cff;
+      --shadow:0 20px 50px rgba(0,0,0,.28);
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:
+      radial-gradient(circle at 20% 0%, rgba(56,122,190,.15), transparent 30%),
+      radial-gradient(circle at 100% 100%, rgba(81,85,190,.13), transparent 35%),
+      var(--bg); color:var(--text);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",
+      "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+      overflow:hidden;
+    }
+    button,select{font:inherit}
+    a{color:inherit}
+    .app{height:100%;display:grid;grid-template-rows:68px 1fr}
+    .topbar{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 20px;border-bottom:1px solid var(--line);
+      background:rgba(5,15,27,.86);backdrop-filter:blur(18px);z-index:20;
+    }
+    .brand{display:flex;align-items:center;gap:12px;min-width:0}
+    .logo{
+      width:38px;height:38px;border-radius:12px;
+      background:
+        radial-gradient(circle at 48% 48%, transparent 0 14%, #eaf8ff 15% 21%, transparent 22%),
+        conic-gradient(from 15deg,#5cd6ff,#4c8dff,#b78cff,#5cd6ff);
+      box-shadow:0 0 28px rgba(92,214,255,.22);
+    }
+    .brand h1{font-size:16px;letter-spacing:.02em;margin:0;font-weight:700}
+    .brand small{display:block;margin-top:2px;color:var(--muted);font-size:11px}
+    .top-actions{display:flex;gap:9px;align-items:center}
+    .status-pill,.btn{
+      height:36px;border:1px solid var(--line);border-radius:11px;
+      display:inline-flex;align-items:center;gap:8px;padding:0 11px;
+      background:rgba(255,255,255,.045);color:var(--text);
+    }
+    .status-pill{font-size:12px;color:var(--muted)}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px rgba(82,219,154,.75)}
+    .dot.warn{background:var(--amber);box-shadow:0 0 10px rgba(255,200,87,.75)}
+    .dot.offline{background:var(--red);box-shadow:0 0 10px rgba(255,98,121,.65)}
+    .btn{cursor:pointer;transition:.18s ease}
+    .btn:hover{background:rgba(255,255,255,.08);transform:translateY(-1px)}
+    .btn:disabled{opacity:.5;cursor:default;transform:none}
+    .layout{
+      min-height:0;display:grid;
+      grid-template-columns:300px minmax(420px,1fr) 330px;
+      gap:12px;padding:12px;
+    }
+    .panel{
+      min-height:0;background:linear-gradient(180deg,var(--panel),rgba(8,20,35,.83));
+      border:1px solid var(--line);border-radius:var(--radius);
+      box-shadow:var(--shadow);overflow:hidden;
+    }
+    .sidebar,.details{display:flex;flex-direction:column}
+    .section-head{
+      padding:17px 17px 12px;display:flex;justify-content:space-between;align-items:center
+    }
+    .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:700}
+    .count{font-size:11px;color:var(--muted);padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.05)}
+    .storm-list{padding:0 10px 12px;overflow:auto}
+    .storm-card{
+      width:100%;text-align:left;border:1px solid transparent;border-radius:14px;
+      background:transparent;color:var(--text);padding:12px;margin:0 0 7px;
+      cursor:pointer;transition:.18s ease;display:grid;gap:8px
+    }
+    .storm-card:hover{background:rgba(255,255,255,.045)}
+    .storm-card.active{border-color:rgba(92,214,255,.34);background:rgba(92,214,255,.07)}
+    .storm-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .storm-name{font-weight:750;font-size:14px}
+    .storm-meta{color:var(--muted);font-size:11px}
+    .badge{font-size:10px;font-weight:750;border-radius:999px;padding:4px 7px;background:rgba(92,214,255,.12);color:var(--cyan);border:1px solid rgba(92,214,255,.16)}
+    .empty{padding:30px 18px;color:var(--muted);font-size:13px;line-height:1.65;text-align:center}
+    .source{
+      margin-top:auto;padding:13px 16px;border-top:1px solid var(--line);
+      color:var(--muted);font-size:10px;line-height:1.6
+    }
+    .source a{color:#bcd7eb}
+    .map-panel{position:relative}
+    #map{width:100%;height:100%;background:#0b1827}
+    .map-overlay{
+      position:absolute;left:14px;top:14px;z-index:500;display:flex;gap:8px;flex-wrap:wrap
+    }
+    .map-chip{
+      border:1px solid var(--line);background:rgba(5,16,28,.82);backdrop-filter:blur(12px);
+      border-radius:10px;padding:8px 10px;font-size:11px;color:#c5d6e4;box-shadow:0 8px 24px rgba(0,0,0,.18)
+    }
+    .map-legend{
+      position:absolute;left:14px;bottom:14px;z-index:500;
+      border:1px solid var(--line);background:rgba(5,16,28,.82);backdrop-filter:blur(12px);
+      border-radius:12px;padding:9px 11px;display:flex;gap:14px;flex-wrap:wrap;
+      font-size:10px;color:#b8c8d6
+    }
+    .legend-item{display:flex;align-items:center;gap:6px}
+    .legend-line{width:20px;height:0;border-top:2px solid var(--cyan)}
+    .legend-line.fc{border-top-style:dashed;border-color:var(--amber)}
+    .legend-dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--cyan)}
+    .hero{padding:18px 18px 12px;border-bottom:1px solid var(--line)}
+    .eyebrow{font-size:11px;color:var(--cyan);text-transform:uppercase;letter-spacing:.12em}
+    .hero h2{font-size:24px;line-height:1.05;margin:8px 0 5px}
+    .hero .sub{font-size:12px;color:var(--muted)}
+    .metrics{
+      display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px
+    }
+    .metric{
+      padding:12px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)
+    }
+    .metric .label{font-size:10px;color:var(--muted);margin-bottom:7px}
+    .metric .value{font-size:19px;font-weight:750;letter-spacing:-.02em}
+    .metric .unit{font-size:10px;color:var(--muted);font-weight:500;margin-left:3px}
+    .metric .hint{margin-top:4px;font-size:10px;color:#adc0d1}
+    .timeline-wrap{padding:3px 12px 12px;min-height:0;overflow:auto}
+    .timeline-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.11em;padding:10px 5px}
+    .timeline{position:relative;padding-left:16px}
+    .timeline:before{content:"";position:absolute;left:4px;top:6px;bottom:6px;width:1px;background:linear-gradient(var(--cyan),rgba(255,200,87,.45))}
+    .forecast-item{position:relative;padding:0 0 13px 12px}
+    .forecast-item:before{
+      content:"";position:absolute;left:-16px;top:5px;width:7px;height:7px;border-radius:50%;
+      background:#0a1727;border:2px solid var(--amber)
+    }
+    .forecast-item.now:before{border-color:var(--cyan);box-shadow:0 0 12px rgba(92,214,255,.5)}
+    .forecast-time{font-size:10px;color:var(--muted)}
+    .forecast-main{font-size:12px;font-weight:650;margin:3px 0}
+    .forecast-sub{font-size:10px;color:#aebed0;line-height:1.55}
+    .notice{
+      margin:0 12px 12px;padding:10px 11px;border-radius:12px;
+      background:rgba(255,200,87,.06);border:1px solid rgba(255,200,87,.16);
+      color:#d7c699;font-size:10px;line-height:1.55
+    }
+    .loading{
+      position:absolute;inset:0;z-index:900;background:rgba(4,13,24,.68);
+      display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)
+    }
+    .loading.hidden{display:none}
+    .spinner{width:30px;height:30px;border-radius:50%;border:3px solid rgba(255,255,255,.13);border-top-color:var(--cyan);animation:spin .85s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .leaflet-control-zoom a{background:#0b1827!important;color:#dbe9f4!important;border-color:rgba(255,255,255,.1)!important}
+    .leaflet-control-attribution{background:rgba(3,11,20,.75)!important;color:#9eb1c3!important}
+    .leaflet-control-attribution a{color:#c5d6e4!important}
+    .tc-icon{
+      width:26px;height:26px;border-radius:50%;
+      border:2px solid white;background:radial-gradient(circle at center,transparent 0 18%,#5cd6ff 19% 35%,transparent 36%),conic-gradient(#5cd6ff,#4c8dff,#b78cff,#5cd6ff);
+      box-shadow:0 0 0 6px rgba(92,214,255,.14),0 0 28px rgba(92,214,255,.45)
+    }
+    .small-icon{
+      width:10px;height:10px;border-radius:50%;background:var(--amber);border:2px solid #fff
+    }
+    @media(max-width:1100px){
+      .layout{grid-template-columns:250px 1fr;grid-template-rows:minmax(0,1fr) 260px}
+      .details{grid-column:1/-1;grid-row:2;display:grid;grid-template-columns:270px 1fr}
+      .hero{border-bottom:0;border-right:1px solid var(--line)}
+      .metrics{grid-template-columns:repeat(4,1fr);align-content:start}
+      .timeline-wrap{grid-column:2;grid-row:2;max-height:180px}
+      .notice{display:none}
+    }
+    @media(max-width:760px){
+      html,body{overflow:auto}
+      .app{height:auto;min-height:100%;grid-template-rows:60px auto}
+      .topbar{padding:0 12px;position:sticky;top:0}
+      .brand small,.status-pill{display:none}
+      .layout{display:flex;flex-direction:column;padding:8px;gap:8px}
+      .sidebar{order:2;max-height:250px}
+      .map-panel{order:1;height:55vh;min-height:390px}
+      .details{order:3;display:flex}
+      .hero{border-right:0;border-bottom:1px solid var(--line)}
+      .metrics{grid-template-columns:1fr 1fr}
+      .timeline-wrap{max-height:none}
+      .notice{display:block}
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>Typhoon Watch</h1>
+        <small>日本及西北太平洋 · JMA 实时台风追踪</small>
+      </div>
+    </div>
+    <div class="top-actions">
+      <div class="status-pill"><span class="dot" id="liveDot"></span><span id="liveLabel">连接 JMA</span></div>
+      <button class="btn" id="refreshBtn" type="button" aria-label="刷新数据">刷新</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel sidebar">
+      <div class="section-head">
+        <div class="section-title">活动系统</div>
+        <div class="count" id="stormCount">—</div>
+      </div>
+      <div class="storm-list" id="stormList">
+        <div class="empty">正在读取日本气象厅数据…</div>
+      </div>
+      <div class="source">
+        数据：日本气象厅（JMA）台风信息。<br>
+        地图：国土地理院地理院地图。<br>
+        <a href="https://www.jma.go.jp/bosai/typhoon/" target="_blank" rel="noreferrer">打开 JMA 官方台风页面 ↗</a>
+      </div>
+    </aside>
+
+    <section class="panel map-panel">
+      <div id="map"></div>
+      <div class="map-overlay">
+        <div class="map-chip" id="updatedChip">更新：—</div>
+        <div class="map-chip" id="positionChip">中心：—</div>
+      </div>
+      <div class="map-legend">
+        <div class="legend-item"><span class="legend-line"></span> 当前/已知路径</div>
+        <div class="legend-item"><span class="legend-line fc"></span> 预报路径</div>
+        <div class="legend-item"><span class="legend-dot"></span> 预报圆</div>
+      </div>
+      <div class="loading" id="loading"><div class="spinner"></div></div>
+    </section>
+
+    <aside class="panel details">
+      <div class="hero">
+        <div class="eyebrow" id="stormCode">等待数据</div>
+        <h2 id="stormTitle">台风追踪</h2>
+        <div class="sub" id="stormLocation">读取实时资料中…</div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric">
+          <div class="label">中心气压</div>
+          <div class="value"><span id="pressure">—</span><span class="unit">hPa</span></div>
+          <div class="hint" id="intensity">—</div>
+        </div>
+        <div class="metric">
+          <div class="label">最大持续风速</div>
+          <div class="value"><span id="wind">—</span><span class="unit">m/s</span></div>
+          <div class="hint" id="gust">阵风 —</div>
+        </div>
+        <div class="metric">
+          <div class="label">移动方向</div>
+          <div class="value" id="course">—</div>
+          <div class="hint" id="speed">— km/h</div>
+        </div>
+        <div class="metric">
+          <div class="label">强风域</div>
+          <div class="value"><span id="gale">—</span><span class="unit">km</span></div>
+          <div class="hint">取最大半径</div>
+        </div>
+      </div>
+
+      <div class="timeline-wrap">
+        <div class="timeline-title">未来路径</div>
+        <div class="timeline" id="forecastTimeline">
+          <div class="forecast-item"><div class="forecast-main">等待预报资料…</div></div>
+        </div>
+      </div>
+
+      <div class="notice">
+        预报圆表示台风中心未来位置的不确定范围，不代表台风本体或强风区大小。防灾决策请以 JMA 及当地政府正式警报为准。
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script>
+(() => {
+  "use strict";
+
+  const JMA_BASE = "https://www.jma.go.jp/bosai/typhoon/data";
+  const AUTO_REFRESH_MS = 10 * 60 * 1000;
+
+  const $ = id => document.getElementById(id);
+  const state = {
+    storms: [],
+    selectedId: null,
+    layers: null,
+    map: null,
+    refreshTimer: null
+  };
+
+  function initMap(){
+    state.map = L.map("map", {
+      zoomControl: true,
+      minZoom: 3,
+      worldCopyJump: true
+    }).setView([27.5, 137.5], 4);
+
+    L.tileLayer("https://maps.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: '&copy; <a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>'
+    }).addTo(state.map);
+
+    state.layers = L.layerGroup().addTo(state.map);
+  }
+
+  function escapeHtml(value){
+    return String(value ?? "").replace(/[&<>"']/g, s => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[s]));
+  }
+
+  function valueAt(obj, path, fallback = null){
+    let cur = obj;
+    for(const key of path){
+      if(cur == null || !(key in cur)) return fallback;
+      cur = cur[key];
+    }
+    return cur ?? fallback;
+  }
+
+  function num(v){
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function getPartName(part){
+    if(typeof part?.part === "string") return part.part;
+    return part?.part?.en || part?.part?.jp || "";
+  }
+
+  function isAnalysis(part){
+    return getPartName(part).toLowerCase() === "analysis" || Number(part?.advancedHours) === 0;
+  }
+
+  function isFuture(part){
+    return Number(part?.advancedHours) > 0 && Array.isArray(part?.position?.deg);
+  }
+
+  function formatTime(iso){
+    if(!iso) return "—";
+    const d = new Date(iso);
+    if(Number.isNaN(d.getTime())) return iso;
+    return new Intl.DateTimeFormat("zh-CN", {
+      month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit",
+      hour12:false, timeZone:"Asia/Tokyo"
+    }).format(d) + " JST";
+  }
+
+  function stormLabel(target, title){
+    const rawNum = String(target?.typhoonNumber ?? title?.typhoonNumber ?? "");
+    const isTyphoon = rawNum.length >= 4;
+    const no = isTyphoon ? String(Number(rawNum.slice(-2))) : rawNum;
+    const enName = valueAt(title, ["name","en"], "") || valueAt(target, ["name","en"], "");
+    const jpName = valueAt(title, ["name","jp"], "") || valueAt(target, ["name","jp"], "");
+    if(isTyphoon){
+      return {
+        code: `T${rawNum}`,
+        title: `台风第 ${no} 号${enName ? " · " + enName.toUpperCase() : ""}`,
+        short: `第 ${no} 号${enName ? " " + enName.toUpperCase() : ""}`,
+        name: enName || jpName || `Typhoon ${no}`
+      };
+    }
+    return {
+      code: "TROPICAL CYCLONE",
+      title: enName ? `热带低气压 · ${enName.toUpperCase()}` : "热带低气压",
+      short: enName ? enName.toUpperCase() : "热带低气压",
+      name: enName || jpName || "Tropical Cyclone"
+    };
+  }
+
+  function maxRadiusKm(entries){
+    if(!Array.isArray(entries)) return null;
+    const values = entries.map(x => num(valueAt(x,["range","km"]))).filter(v => v != null);
+    return values.length ? Math.max(...values) : null;
+  }
+
+  function normalizeStorm(target, specs){
+    const title = specs.find(p => p?.part === "title") || {};
+    const analysis = specs.find(isAnalysis) || {};
+    const futures = specs.filter(isFuture).sort((a,b) => num(a.advancedHours)-num(b.advancedHours));
+    const label = stormLabel(target, title);
+    const center = Array.isArray(analysis?.position?.deg) ? analysis.position.deg.map(Number) : null;
+    return {
+      id: target.tropicalCyclone,
+      target, specs, title, analysis, futures, label,
+      center,
+      issue: valueAt(title,["issue","JST"]) || valueAt(analysis,["validtime","JST"]),
+      pressure: num(analysis.pressure),
+      wind: num(valueAt(analysis,["maximumWind","sustained","m/s"])),
+      gust: num(valueAt(analysis,["maximumWind","gust","m/s"])),
+      course: analysis.course || "—",
+      speed: num(valueAt(analysis,["speed","km/h"])),
+      intensity: analysis.intensity || analysis.scale || "—",
+      location: analysis.location || "位置说明暂无",
+      gale: maxRadiusKm(analysis.galeWarning),
+      stormRadius: maxRadiusKm(analysis.stormWarning)
+    };
+  }
+
+  async function getJson(url){
+    const res = await fetch(url, {cache:"no-store"});
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async function loadStorms(){
+    const targets = await getJson(`${JMA_BASE}/targetTc.json`);
+    if(!Array.isArray(targets)) throw new Error("JMA 返回格式异常");
+
+    const storms = [];
+    for(const target of targets){
+      try{
+        const specs = await getJson(`${JMA_BASE}/${encodeURIComponent(target.tropicalCyclone)}/specifications.json`);
+        storms.push(normalizeStorm(target, specs));
+      }catch(err){
+        console.warn("Failed to load storm", target, err);
+      }
+    }
+    return storms;
+  }
+
+  function setStatus(kind, label){
+    const dot = $("liveDot");
+    dot.className = "dot" + (kind ? " " + kind : "");
+    $("liveLabel").textContent = label;
+  }
+
+  function setLoading(on){
+    $("loading").classList.toggle("hidden", !on);
+    $("refreshBtn").disabled = on;
+  }
+
+  function renderStormList(){
+    const list = $("stormList");
+    $("stormCount").textContent = `${state.storms.length} 个`;
+    if(!state.storms.length){
+      list.innerHTML = `<div class="empty">目前 JMA 没有正在发布的台风/热带低气压资料。<br><br>页面会每 10 分钟自动检查一次。</div>`;
+      return;
+    }
+    list.innerHTML = state.storms.map(storm => {
+      const active = storm.id === state.selectedId ? " active" : "";
+      const meta = [storm.location, storm.pressure != null ? `${storm.pressure} hPa` : null].filter(Boolean).join(" · ");
+      return `<button class="storm-card${active}" data-id="${escapeHtml(storm.id)}">
+        <div class="storm-row">
+          <div class="storm-name">${escapeHtml(storm.label.short)}</div>
+          <span class="badge">${escapeHtml(storm.intensity || "台风")}</span>
+        </div>
+        <div class="storm-meta">${escapeHtml(meta || "等待详细资料")}</div>
+      </button>`;
+    }).join("");
+
+    list.querySelectorAll(".storm-card").forEach(btn => {
+      btn.addEventListener("click", () => selectStorm(btn.dataset.id));
+    });
+  }
+
+  function circleStyle(kind){
+    if(kind === "forecast") return {color:"#ffc857", weight:1.4, fillColor:"#ffc857", fillOpacity:.045, dashArray:"5 6"};
+    if(kind === "storm") return {color:"#ff6279", weight:1.2, fillColor:"#ff6279", fillOpacity:.04, dashArray:"4 5"};
+    return {color:"#5cd6ff", weight:1.1, fillColor:"#5cd6ff", fillOpacity:.035};
+  }
+
+  function drawStorm(storm){
+    state.layers.clearLayers();
+    if(!storm || !storm.center) return;
+
+    const [lat,lng] = storm.center;
+    const icon = L.divIcon({className:"", html:'<div class="tc-icon"></div>', iconSize:[26,26], iconAnchor:[13,13]});
+    L.marker([lat,lng], {icon})
+      .bindTooltip(`${escapeHtml(storm.label.short)}<br>${escapeHtml(storm.location)}`, {direction:"top", offset:[0,-8]})
+      .addTo(state.layers);
+
+    if(storm.gale){
+      L.circle([lat,lng], {radius:storm.gale*1000, ...circleStyle("gale")}).addTo(state.layers);
+    }
+    if(storm.stormRadius){
+      L.circle([lat,lng], {radius:storm.stormRadius*1000, ...circleStyle("storm")}).addTo(state.layers);
+    }
+
+    const forecastPoints = storm.futures.map(p => ({
+      latlng: p.position.deg.map(Number),
+      radius: num(valueAt(p,["probabilityCircleRadius","km"])),
+      time: valueAt(p,["validtime","JST"]),
+      pressure: num(p.pressure),
+      wind: num(valueAt(p,["maximumWind","sustained","m/s"])),
+      hours: num(p.advancedHours)
+    })).filter(p => p.latlng.every(Number.isFinite));
+
+    if(forecastPoints.length){
+      const path = [[lat,lng], ...forecastPoints.map(p=>p.latlng)];
+      L.polyline(path, {color:"#ffc857", weight:2.2, opacity:.85, dashArray:"7 8"}).addTo(state.layers);
+
+      forecastPoints.forEach((p,idx) => {
+        if(p.radius){
+          L.circle(p.latlng, {radius:p.radius*1000, ...circleStyle("forecast")}).addTo(state.layers);
+        }
+        const tiny = L.divIcon({className:"", html:'<div class="small-icon"></div>', iconSize:[10,10], iconAnchor:[5,5]});
+        L.marker(p.latlng,{icon:tiny}).bindTooltip(
+          `${p.hours ?? "?"}h · ${formatTime(p.time)}${p.pressure != null ? `<br>${p.pressure} hPa` : ""}`,
+          {direction:"top", offset:[0,-5]}
+        ).addTo(state.layers);
+      });
+
+      const bounds = L.latLngBounds(path);
+      forecastPoints.forEach(p => {
+        if(p.radius){
+          const c = L.circle(p.latlng,{radius:p.radius*1000});
+          bounds.extend(c.getBounds());
+        }
+      });
+      state.map.fitBounds(bounds.pad(.18), {maxZoom:6});
+    }else{
+      state.map.setView([lat,lng], 6);
+    }
+  }
+
+  function renderDetails(storm){
+    if(!storm){
+      $("stormCode").textContent = "NO ACTIVE SYSTEM";
+      $("stormTitle").textContent = "当前无活动台风";
+      $("stormLocation").textContent = "JMA 目前没有发布中的台风资料";
+      ["pressure","wind","course","gale"].forEach(id => $(id).textContent = "—");
+      $("gust").textContent = "阵风 —";
+      $("speed").textContent = "— km/h";
+      $("intensity").textContent = "—";
+      $("forecastTimeline").innerHTML = `<div class="forecast-item"><div class="forecast-main">暂无预报节点</div></div>`;
+      $("updatedChip").textContent = "更新：—";
+      $("positionChip").textContent = "中心：—";
+      return;
+    }
+
+    $("stormCode").textContent = storm.label.code;
+    $("stormTitle").textContent = storm.label.title;
+    $("stormLocation").textContent = storm.location;
+    $("pressure").textContent = storm.pressure ?? "—";
+    $("wind").textContent = storm.wind ?? "—";
+    $("gust").textContent = storm.gust != null ? `阵风 ${storm.gust} m/s` : "阵风 —";
+    $("course").textContent = storm.course || "—";
+    $("speed").textContent = storm.speed != null ? `${storm.speed} km/h` : "— km/h";
+    $("intensity").textContent = [storm.intensity, storm.analysis.scale].filter(x => x && x !== "-").join(" · ") || "—";
+    $("gale").textContent = storm.gale ?? "—";
+    $("updatedChip").textContent = `更新：${formatTime(storm.issue)}`;
+    $("positionChip").textContent = storm.center ? `中心：${storm.center[0].toFixed(1)}°, ${storm.center[1].toFixed(1)}°` : "中心：—";
+
+    const analysis = storm.analysis;
+    const nodes = [analysis, ...storm.futures];
+    $("forecastTimeline").innerHTML = nodes.map((p,idx) => {
+      const hours = num(p.advancedHours);
+      const time = formatTime(valueAt(p,["validtime","JST"]));
+      const pressure = num(p.pressure);
+      const wind = num(valueAt(p,["maximumWind","sustained","m/s"]));
+      const location = p.location || "";
+      const circle = num(valueAt(p,["probabilityCircleRadius","km"]));
+      const title = idx === 0 ? "当前分析" : `${hours ?? "?"} 小时后`;
+      const details = [
+        pressure != null ? `${pressure} hPa` : null,
+        wind != null ? `最大风速 ${wind} m/s` : null,
+        circle != null ? `预报圆 ${circle} km` : null
+      ].filter(Boolean).join(" · ");
+      return `<div class="forecast-item${idx===0?" now":""}">
+        <div class="forecast-time">${escapeHtml(time)}</div>
+        <div class="forecast-main">${escapeHtml(title)}${location ? " · " + escapeHtml(location) : ""}</div>
+        <div class="forecast-sub">${escapeHtml(details || "暂无强度资料")}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function selectStorm(id){
+    state.selectedId = id;
+    renderStormList();
+    const storm = state.storms.find(s => s.id === id);
+    renderDetails(storm);
+    drawStorm(storm);
+  }
+
+  async function refresh(){
+    setLoading(true);
+    setStatus("warn","正在更新");
+    try{
+      const storms = await loadStorms();
+      state.storms = storms;
+      if(!storms.some(s => s.id === state.selectedId)){
+        state.selectedId = storms[0]?.id || null;
+      }
+      renderStormList();
+      if(state.selectedId){
+        selectStorm(state.selectedId);
+      }else{
+        state.layers.clearLayers();
+        renderDetails(null);
+        state.map.setView([27.5,137.5],4);
+      }
+      setStatus("", storms.length ? "JMA 实时" : "JMA · 无活动系统");
+    }catch(err){
+      console.error(err);
+      setStatus("offline","连接失败");
+      $("stormCount").textContent = "离线";
+      $("stormList").innerHTML = `<div class="empty">无法取得 JMA 实时数据。<br>请检查网络后点击“刷新”。<br><br><small>${escapeHtml(err.message || String(err))}</small></div>`;
+    }finally{
+      setLoading(false);
+    }
+  }
+
+  $("refreshBtn").addEventListener("click", refresh);
+  initMap();
+  refresh();
+  state.refreshTimer = setInterval(refresh, AUTO_REFRESH_MS);
+})();
+</script>
+</body>
+</html>
