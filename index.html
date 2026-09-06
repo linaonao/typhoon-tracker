@@ -137,6 +137,42 @@
     .metric .value{font-size:19px;font-weight:750;letter-spacing:-.02em}
     .metric .unit{font-size:10px;color:var(--muted);font-weight:500;margin-left:3px}
     .metric .hint{margin-top:4px;font-size:10px;color:#adc0d1}
+
+    .rain-card{
+      margin:0 12px 10px;padding:12px;border:1px solid rgba(92,214,255,.16);
+      border-radius:14px;background:linear-gradient(180deg,rgba(76,141,255,.07),rgba(92,214,255,.025));
+    }
+    .rain-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+    .rain-title{font-size:11px;color:var(--cyan);font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+    .rain-issued{font-size:9px;color:var(--muted);margin-top:4px}
+    .rain-max{
+      min-width:62px;text-align:right;font-size:21px;font-weight:800;letter-spacing:-.03em
+    }
+    .rain-max span{font-size:10px;font-weight:600;color:var(--muted);margin-left:2px}
+    .rain-summary{
+      font-size:11px;line-height:1.55;color:#d2e1ed;margin-bottom:10px;
+      padding-bottom:10px;border-bottom:1px solid var(--line)
+    }
+    .rain-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+    .rain-slot{
+      padding:8px 6px;border-radius:10px;background:rgba(255,255,255,.028);
+      border:1px solid rgba(255,255,255,.055);text-align:center
+    }
+    .rain-time{font-size:9px;color:var(--muted);margin-bottom:4px}
+    .rain-pop{font-size:16px;font-weight:750}
+    .rain-bar{height:3px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px}
+    .rain-bar > i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--blue));border-radius:99px}
+    .rain-week{
+      display:flex;gap:6px;overflow-x:auto;padding-top:9px;margin-top:9px;border-top:1px solid var(--line);
+      scrollbar-width:thin
+    }
+    .rain-day{
+      flex:0 0 48px;text-align:center;padding:6px 4px;border-radius:9px;background:rgba(255,255,255,.022)
+    }
+    .rain-day .d{font-size:9px;color:var(--muted)}
+    .rain-day .p{font-size:12px;font-weight:700;margin-top:3px}
+    .rain-error{font-size:10px;color:var(--muted);line-height:1.55}
+
     .timeline-wrap{padding:3px 12px 12px;min-height:0;overflow:auto}
     .timeline-title{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.11em;padding:10px 5px}
     .timeline{position:relative;padding-left:16px}
@@ -192,6 +228,7 @@
       .details{order:3;display:flex}
       .hero{border-right:0;border-bottom:1px solid var(--line)}
       .metrics{grid-template-columns:1fr 1fr}
+      .rain-slots{grid-template-columns:repeat(2,1fr)}
       .timeline-wrap{max-height:none}
       .notice{display:block}
     }
@@ -223,7 +260,7 @@
         <div class="empty">正在读取日本气象厅数据…</div>
       </div>
       <div class="source">
-        数据：日本气象厅（JMA）台风信息。<br>
+        数据：日本气象厅（JMA）台风信息、东京地方天气预报。<br>
         地图：国土地理院地理院地图。<br>
         <a href="https://www.jma.go.jp/bosai/typhoon/" target="_blank" rel="noreferrer">打开 JMA 官方台风页面 ↗</a>
       </div>
@@ -273,6 +310,21 @@
         </div>
       </div>
 
+      <div class="rain-card" id="tokyoRainCard">
+        <div class="rain-head">
+          <div>
+            <div class="rain-title">东京降雨预报</div>
+            <div class="rain-issued" id="rainIssued">JMA · 读取中…</div>
+          </div>
+          <div class="rain-max"><span id="rainMaxPop">—</span><span>%</span></div>
+        </div>
+        <div class="rain-summary" id="rainSummary">正在读取东京地方降水概率…</div>
+        <div class="rain-slots" id="rainSlots">
+          <div class="rain-error">等待数据…</div>
+        </div>
+        <div class="rain-week" id="rainWeek"></div>
+      </div>
+
       <div class="timeline-wrap">
         <div class="timeline-title">未来路径</div>
         <div class="timeline" id="forecastTimeline">
@@ -282,6 +334,7 @@
 
       <div class="notice">
         预报圆表示台风中心未来位置的不确定范围，不代表台风本体或强风区大小。防灾决策请以 JMA 及当地政府正式警报为准。
+        <br><a href="https://www.jma.go.jp/bosai/rain/" target="_blank" rel="noreferrer" style="color:#cfe8f7">查看 JMA 实时雨云雷达 ↗</a>
       </div>
     </aside>
   </main>
@@ -295,6 +348,7 @@
   "use strict";
 
   const JMA_BASE = "https://www.jma.go.jp/bosai/typhoon/data";
+  const TOKYO_FORECAST_URL = "https://www.jma.go.jp/bosai/forecast/data/forecast/130000.json";
   const AUTO_REFRESH_MS = 10 * 60 * 1000;
 
   const $ = id => document.getElementById(id);
@@ -435,6 +489,98 @@
       }
     }
     return storms;
+  }
+
+
+  function shortTokyoTime(iso){
+    if(!iso) return "—";
+    const d = new Date(iso);
+    if(Number.isNaN(d.getTime())) return "—";
+    const parts = new Intl.DateTimeFormat("zh-CN", {
+      month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit",
+      hour12:false, timeZone:"Asia/Tokyo"
+    }).formatToParts(d);
+    const get = type => parts.find(p => p.type === type)?.value || "";
+    return `${get("month")}/${get("day")} ${get("hour")}:${get("minute")}`;
+  }
+
+  function shortDay(iso){
+    if(!iso) return "—";
+    const d = new Date(iso);
+    if(Number.isNaN(d.getTime())) return "—";
+    return new Intl.DateTimeFormat("zh-CN", {
+      month:"numeric", day:"numeric", timeZone:"Asia/Tokyo"
+    }).format(d);
+  }
+
+  async function loadTokyoRain(){
+    const data = await getJson(TOKYO_FORECAST_URL);
+    if(!Array.isArray(data) || !data.length) throw new Error("东京天气预报格式异常");
+
+    const shortFc = data[0] || {};
+    const weekFc = data[1] || {};
+
+    const weatherSeries = shortFc.timeSeries?.[0];
+    const popSeries = shortFc.timeSeries?.[1];
+
+    const weatherArea = weatherSeries?.areas?.find(a => a?.area?.code === "130010")
+      || weatherSeries?.areas?.find(a => a?.area?.name === "東京地方");
+    const popArea = popSeries?.areas?.find(a => a?.area?.code === "130010")
+      || popSeries?.areas?.find(a => a?.area?.name === "東京地方");
+
+    const slots = (popSeries?.timeDefines || []).map((time, i) => ({
+      time,
+      pop: num(popArea?.pops?.[i])
+    })).filter(x => x.pop != null);
+
+    const weeklySeries = weekFc.timeSeries?.[0];
+    const weeklyArea = weeklySeries?.areas?.find(a => a?.area?.code === "130010")
+      || weeklySeries?.areas?.find(a => a?.area?.name === "東京地方");
+
+    const week = (weeklySeries?.timeDefines || []).map((time, i) => ({
+      time,
+      pop: num(weeklyArea?.pops?.[i])
+    })).filter(x => x.pop != null);
+
+    return {
+      issued: shortFc.reportDatetime || weekFc.reportDatetime || null,
+      weather: weatherArea?.weathers?.[0] || "东京地方天气资料暂无",
+      slots,
+      week
+    };
+  }
+
+  function renderTokyoRain(rain){
+    if(!rain){
+      $("rainIssued").textContent = "JMA · 暂无数据";
+      $("rainMaxPop").textContent = "—";
+      $("rainSummary").textContent = "暂时无法读取东京地方降水概率。";
+      $("rainSlots").innerHTML = `<div class="rain-error">请稍后刷新页面。</div>`;
+      $("rainWeek").innerHTML = "";
+      return;
+    }
+
+    const first24 = rain.slots.slice(0, 4);
+    const maxPop = first24.length ? Math.max(...first24.map(x => x.pop)) : null;
+
+    $("rainIssued").textContent = `JMA 发布：${formatTime(rain.issued)}`;
+    $("rainMaxPop").textContent = maxPop ?? "—";
+    $("rainSummary").textContent = rain.weather;
+
+    $("rainSlots").innerHTML = first24.length
+      ? first24.map(s => `
+        <div class="rain-slot">
+          <div class="rain-time">${escapeHtml(shortTokyoTime(s.time))}</div>
+          <div class="rain-pop">${s.pop}<span style="font-size:9px;color:var(--muted)">%</span></div>
+          <div class="rain-bar"><i style="width:${Math.max(0, Math.min(100, s.pop))}%"></i></div>
+        </div>`).join("")
+      : `<div class="rain-error">暂无分时降水概率。</div>`;
+
+    $("rainWeek").innerHTML = rain.week.slice(0, 7).map(d => `
+      <div class="rain-day">
+        <div class="d">${escapeHtml(shortDay(d.time))}</div>
+        <div class="p">${d.pop}%</div>
+      </div>`).join("");
   }
 
   function setStatus(kind, label){
@@ -602,6 +748,14 @@
   async function refresh(){
     setLoading(true);
     setStatus("warn","正在更新");
+
+    // 东京降雨预报独立加载：失败时不影响台风主功能。
+    loadTokyoRain()
+      .then(renderTokyoRain)
+      .catch(err => {
+        console.error("Tokyo rain forecast failed:", err);
+        renderTokyoRain(null);
+      });
 
     let storms;
     try{
